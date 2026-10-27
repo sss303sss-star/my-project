@@ -1,48 +1,24 @@
-// Instagram 자동 포스팅: Claude로 글 생성 -> 이미지 카드 렌더 -> Graph API로 게시.
+// Instagram 자동 포스팅: queue.json의 다음 글 -> 이미지 카드 렌더 -> Graph API로 게시.
 //
-// node post.mjs generate   # posts/<날짜>.jpg + .json 생성
+// node post.mjs prepare    # queue.json 맨 앞 글을 꺼내 posts/<날짜>.jpg + .json 생성
 // node post.mjs publish    # 가장 최근 post를 Instagram에 게시 (이미지가 공개 URL에 올라간 뒤)
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
+import sharp from "sharp";
 
 const POSTS = "posts";
+const QUEUE = "queue.json";
 const GRAPH = "https://graph.facebook.com/v21.0";
 
 const postFiles = async () =>
   (await readdir(POSTS).catch(() => [])).filter((f) => f.endsWith(".json")).sort();
 
-async function generate() {
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const { zodOutputFormat } = await import("@anthropic-ai/sdk/helpers/zod");
-  const { z } = await import("zod");
-  const { default: sharp } = await import("sharp");
+async function prepare() {
+  const queue = JSON.parse(await readFile(QUEUE, "utf8"));
+  const post = queue.shift();
+  if (!post) throw new Error("queue.json이 비었어요. 게시물을 채워주세요.");
 
-  const Post = z.object({
-    topic: z.string(),
-    image_text: z.string(), // 카드에 들어갈 짧은 문구
-    caption: z.string(), // 해시태그 포함 본문
-  });
-
-  const recent = await Promise.all(
-    (await postFiles()).slice(-20).map(async (f) => JSON.parse(await readFile(`${POSTS}/${f}`, "utf8")).topic),
-  );
-  const resp = await new Anthropic().messages.parse({
-    model: "claude-opus-5-5",
-    max_tokens: 16000,
-    output_config: { effort: "low", format: zodOutputFormat(Post) },
-    messages: [{
-      role: "user",
-      content:
-        `인스타그램 계정 주제: ${process.env.ACCOUNT_THEME}\n` +
-        `최근 다룬 토픽(중복 금지): ${JSON.stringify(recent)}\n` +
-        "새 피드 게시물 1개를 한국어로 작성해. image_text는 40자 이내, " +
-        "caption은 300자 이내 + 해시태그 5~10개.",
-    }],
-  });
-  if (resp.stop_reason !== "end_turn" || !resp.parsed_output) throw new Error(`generation stopped: ${resp.stop_reason}`);
-  const post = resp.parsed_output;
-
-  // 12자씩 줄바꿈해 SVG로 그린 뒤 JPEG 변환
+  // \n 또는 12자마다 줄바꿈해 SVG로 그린 뒤 JPEG 변환
   const esc = (s) => s.replace(/[<>&"]/g, (c) => `&#${c.charCodeAt(0)};`);
   const lines = post.image_text.match(/.{1,12}/gu);
   const top = 540 - ((lines.length - 1) * 96) / 2;
@@ -57,7 +33,8 @@ async function generate() {
   const stem = `${POSTS}/${new Date().toISOString().slice(0, 10)}`;
   await sharp(Buffer.from(svg)).jpeg({ quality: 92 }).toFile(`${stem}.jpg`);
   await writeFile(`${stem}.json`, JSON.stringify(post, null, 2));
-  console.log(stem);
+  await writeFile(QUEUE, JSON.stringify(queue, null, 2) + "\n");
+  console.log(stem, `(남은 글 ${queue.length}개)`);
 }
 
 async function graph(path, params = {}, method = "POST") {
@@ -84,4 +61,4 @@ async function publish() {
   console.log(await graph(`${user}/media_publish`, { creation_id: id }));
 }
 
-await { generate, publish }[process.argv[2]]();
+await { prepare, publish }[process.argv[2]]();

@@ -18,16 +18,13 @@ jobs:
           node-version: 22
       - run: sudo apt-get install -y fonts-nanum && npm ci
 
-      - run: node post.mjs generate
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ACCOUNT_THEME: ${{ vars.ACCOUNT_THEME }}
+      - run: node post.mjs prepare
 
       # 이미지를 repo에 push해 raw URL로 공개 (public repo 필요)
       - run: |
           git config user.name github-actions
           git config user.email github-actions@users.noreply.github.com
-          git add posts && git commit -m "post: $(date +%F)" && git push
+          git add posts queue.json && git commit -m "post: $(date +%F)" && git push
 
       - run: node post.mjs publish
         env:
