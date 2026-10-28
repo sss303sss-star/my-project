@@ -19,6 +19,8 @@ jobs:
       - run: sudo apt-get install -y fonts-nanum && npm ci
 
       - run: node post.mjs prepare
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       # 이미지를 repo에 push해 raw URL로 공개 (public repo 필요)
       - run: |
