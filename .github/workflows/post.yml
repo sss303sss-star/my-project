@@ -2,7 +2,7 @@ name: instagram-post
 
 on:
   schedule:
-    - cron: "0 0 * * 1" # 매주 월요일 09:00 KST
+    - cron: "50 2 * * 2" # 매주 화요일 11:50 KST (UTC 02:50)
   workflow_dispatch:
     inputs:
       republish:
