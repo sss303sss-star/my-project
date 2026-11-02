@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "prepare-post": "node post.mjs prepare",
-    "publish-post": "node post.mjs publish"
+    "publish-post": "node post.mjs publish",
+    "admin": "node admin.mjs"
   },
   "dependencies": {
     "sharp": "^0.35.5"
