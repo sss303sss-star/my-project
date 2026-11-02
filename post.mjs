@@ -109,4 +109,13 @@ async function publish() {
   console.log(await graph(`${user}/media_publish`, { creation_id: id }));
 }
 
-await { prepare, publish }[process.argv[2]]();
+// 토큰이 14일 안에 만료되면 실패 -> GitHub Actions 실패 메일로 알림
+async function check() {
+  const { data } = await graph("debug_token", { input_token: process.env.IG_ACCESS_TOKEN }, "GET");
+  if (!data.is_valid) throw new Error("IG_ACCESS_TOKEN이 만료됐거나 무효예요. 새 토큰으로 바꿔주세요.");
+  const days = data.expires_at ? Math.floor((data.expires_at * 1000 - Date.now()) / 864e5) : Infinity;
+  console.log(`토큰 만료까지 ${days}일 (${data.expires_at ? new Date(data.expires_at * 1000).toISOString().slice(0, 10) : "만료 없음"})`);
+  if (days < 14) throw new Error(`IG_ACCESS_TOKEN이 ${days}일 뒤 만료돼요. 새 토큰으로 바꿔주세요.`);
+}
+
+await { prepare, publish, check }[process.argv[2]]();
